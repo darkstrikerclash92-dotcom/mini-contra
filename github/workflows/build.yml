@@ -1,1 +1,40 @@
+name: Compilar PS3 pkg
 
+on:
+  push:
+  workflow_dispatch:   # permite ejecutarlo a mano con un botón
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ps3dev/ps3dev:latest   # imagen con el toolchain y PSL1GHT ya instalados
+
+    steps:
+      - name: Descargar el proyecto
+        uses: actions/checkout@v4
+
+      - name: Conseguir rsxutil desde los samples de PSL1GHT
+        run: |
+          if [ ! -f source/rsxutil.c ]; then
+            command -v git >/dev/null || apk add --no-cache git || (apt-get update && apt-get install -y git)
+            git clone --depth 1 https://github.com/ps3dev/PSL1GHT.git /tmp/psl1ght
+            RSX=$(find /tmp/psl1ght/samples -name rsxutil.c | head -1)
+            echo "Usando: $RSX"
+            cp "$RSX" source/
+            cp "$(dirname "$RSX")/rsxutil.h" source/
+          fi
+
+      - name: Compilar y empaquetar
+        run: |
+          export PS3DEV=${PS3DEV:-/usr/local/ps3dev}
+          export PSL1GHT=${PSL1GHT:-$PS3DEV}
+          export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin
+          make pkg
+
+      - name: Guardar el resultado para descargarlo
+        uses: actions/upload-artifact@v4
+        with:
+          name: mini-contra-pkg
+          path: |
+            *.pkg
+            *.self
