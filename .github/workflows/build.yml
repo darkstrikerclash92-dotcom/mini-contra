@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar el proyecto
       - name: Descargar el proyecto
         uses: actions/checkout@v4
 
-      # 2. Obtener los archivos RSX de PSL1GHT
       - name: Preparar archivos rsxutil
         run: |
           mkdir -p source
@@ -25,59 +23,43 @@ jobs:
             RSX=/tmp/psl1ght/samples/graphics/cairo/source/rsxutil.c
             HEADER=/tmp/psl1ght/samples/graphics/cairo/include/rsxutil.h
 
-            if [ ! -f "$RSX" ]; then
-              echo "ERROR: No se encontró rsxutil.c"
-              find /tmp/psl1ght/samples -name rsxutil.c
-              exit 1
-            fi
-
-            if [ ! -f "$HEADER" ]; then
-              echo "ERROR: No se encontró rsxutil.h"
-              find /tmp/psl1ght/samples -name rsxutil.h
+            if [ ! -f "$RSX" ] || [ ! -f "$HEADER" ]; then
+              echo "ERROR: No se encontraron los archivos RSX"
+              find /tmp/psl1ght/samples -name 'rsxutil.c' -o -name 'rsxutil.h'
               exit 1
             fi
 
             cp "$RSX" source/
             cp "$HEADER" source/
-
-            echo "Archivos RSX preparados correctamente"
           fi
 
-      # 3. Comprobar los archivos del proyecto
       - name: Verificar proyecto
         run: |
-          echo "Contenido de source:"
           ls -la source
-          echo "Makefile:"
           test -f Makefile
-          echo "sfo.xml:"
           test -f sfo.xml
 
-      # 4. Compilar dentro del entorno PS3DEV
       - name: Compilar Mini Contra
         run: |
           docker run --rm \
-            -v "$PWD:/build" \
-            -w /build \
+            -v "$PWD:/workspace" \
+            -w /workspace \
             ghcr.io/altps3/ps3dev:latest \
             sh -c '
               export PS3DEV=${PS3DEV:-/usr/local/ps3dev}
               export PSL1GHT=${PSL1GHT:-$PS3DEV}
               export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin
 
-              echo "PS3DEV=$PS3DEV"
-              echo "PSL1GHT=$PSL1GHT"
-
+              echo "Preparando compilación..."
               make clean
               make
             '
 
-      # 5. Generar paquete PKG
       - name: Generar paquete PKG
         run: |
           docker run --rm \
-            -v "$PWD:/build" \
-            -w /build \
+            -v "$PWD:/workspace" \
+            -w /workspace \
             ghcr.io/altps3/ps3dev:latest \
             sh -c '
               export PS3DEV=${PS3DEV:-/usr/local/ps3dev}
@@ -87,19 +69,17 @@ jobs:
               make pkg
             '
 
-      # 6. Comprobar los resultados
       - name: Verificar archivos generados
         run: |
-          echo "Archivos generados:"
-          find . -maxdepth 3 -type f \( -name "*.elf" -o -name "*.self" -o -name "*.pkg" \)
+          echo "Buscando archivos generados..."
+          find . -type f \( -name "*.elf" -o -name "*.self" -o -name "*.pkg" \)
 
           if ! find . -name "*.pkg" -type f | grep -q .; then
             echo "ERROR: No se generó ningún PKG"
             exit 1
           fi
 
-      # 7. Guardar los archivos para descargar
-      - name: Guardar Mini Contra
+      - name: Guardar resultado
         uses: actions/upload-artifact@v4
         with:
           name: Mini-Contra-PS3
