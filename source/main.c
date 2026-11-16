@@ -105,7 +105,6 @@ static void fire(int dx, int dy)
 
     for (i = 0; i < MAX_BULLETS; i++) {
         if (!bullets[i].alive) {
-
             bullets[i] = (Obj) {
                 player.x + player.w / 2,
                 player.y + 14,
@@ -126,7 +125,6 @@ static void spawn_enemy(void)
 
     for (i = 0; i < MAX_ENEMIES; i++) {
         if (!enemies[i].alive) {
-
             int side = (rand() % 2) ? 1 : -1;
 
             enemies[i] = (Obj) {
@@ -208,7 +206,6 @@ static void update(padData *pd, int connected)
         shoot_cd = 8;
     }
 
-    /* Cámara */
     camx = player.x - (int)display_width / 3;
 
     if (camx < 0)
@@ -217,7 +214,6 @@ static void update(padData *pd, int connected)
     if (camx > LEVEL_W - (int)display_width)
         camx = LEVEL_W - (int)display_width;
 
-    /* Balas */
     int i, b;
 
     for (i = 0; i < MAX_BULLETS; i++) {
@@ -230,12 +226,10 @@ static void update(padData *pd, int connected)
         if (bullets[i].x < camx - 50 ||
             bullets[i].x > camx + display_width + 50 ||
             bullets[i].y < -20) {
-
             bullets[i].alive = 0;
         }
     }
 
-    /* Enemigos */
     if (++spawn_timer > 70) {
         spawn_timer = 0;
         spawn_enemy();
@@ -279,18 +273,15 @@ static void draw(uint32_t *fb)
 {
     int i;
 
-    /* Cielo */
     rect(fb, 0, 0,
          display_width, display_height,
          COL(20, 20, 50));
 
-    /* Suelo */
     rect(fb, 0, GROUND_Y,
          display_width,
          display_height - GROUND_Y,
          COL(40, 110, 40));
 
-    /* Decoración */
     for (i = 0; i < LEVEL_W; i += 300) {
         rect(fb, i - camx,
              GROUND_Y - 60,
@@ -298,7 +289,6 @@ static void draw(uint32_t *fb)
              COL(30, 80, 30));
     }
 
-    /* Jugador */
     if (!(invuln && (invuln / 4) % 2)) {
         rect(fb,
              player.x - camx,
@@ -308,14 +298,12 @@ static void draw(uint32_t *fb)
              COL(60, 120, 255));
     }
 
-    /* Arma */
     rect(fb,
          player.x - camx + (facing > 0 ? 14 : 0),
          player.y + 14,
          14, 5,
          COL(220, 220, 220));
 
-    /* Balas */
     for (i = 0; i < MAX_BULLETS; i++) {
         if (bullets[i].alive) {
             rect(fb,
@@ -327,7 +315,6 @@ static void draw(uint32_t *fb)
         }
     }
 
-    /* Enemigos */
     for (i = 0; i < MAX_ENEMIES; i++) {
         if (enemies[i].alive) {
             rect(fb,
@@ -339,7 +326,6 @@ static void draw(uint32_t *fb)
         }
     }
 
-    /* Vidas */
     for (i = 0; i < lives; i++) {
         rect(fb,
              20 + i * 30,
@@ -348,7 +334,6 @@ static void draw(uint32_t *fb)
              COL(60, 120, 255));
     }
 
-    /* Indicador de puntuación */
     rect(fb, 20, 50,
          (score / 100 % 40) * 5,
          8,
@@ -360,7 +345,7 @@ int main(int argc, const char *argv[])
     padInfo padinfo;
     padData paddata;
 
-    void *host_addr;
+    void *host_addr = NULL;
     int currentBuffer = 0;
     int i;
     int connected;
@@ -369,34 +354,36 @@ int main(int argc, const char *argv[])
     memset(&paddata, 0, sizeof(paddata));
     memset(buffers, 0, sizeof(buffers));
 
-    /* Reservar memoria compartida con RSX */
     host_addr = memalign(1024 * 1024, HOST_SIZE);
 
     if (!host_addr)
         return 1;
 
-    /* Inicializar pantalla */
     context = initScreen(host_addr, HOST_SIZE);
 
-    if (!context) {
-        free(host_addr);
+    /*
+       IMPORTANTE:
+       initScreen ya libera host_addr si falla.
+       Por eso NO debemos volver a liberarlo aquí.
+    */
+    if (!context)
         return 1;
-    }
 
-    /* Obtener resolución */
     if (!getResolution(&display_width, &display_height)) {
+        rsxFinish(context, 1);
         free(host_addr);
         return 1;
     }
 
-    /* Crear doble buffer */
     for (i = 0; i < MAX_BUFFERS; i++) {
         if (!makeBuffer(&buffers[i],
                         display_width,
                         display_height,
                         i)) {
 
-            for (int j = 0; j < i; j++)
+            int j;
+
+            for (j = 0; j < i; j++)
                 rsxFree(buffers[j].ptr);
 
             rsxFinish(context, 1);
@@ -405,18 +392,14 @@ int main(int argc, const char *argv[])
         }
     }
 
-    /* Inicializar mando */
     ioPadInit(7);
 
-    /* Registrar salida */
     sysUtilRegisterCallback(0, sys_cb, NULL);
 
     reset_game();
 
-    /* Activar primer buffer */
     flip(context, MAX_BUFFERS - 1);
 
-    /* Bucle principal */
     while (running) {
 
         sysUtilCheckCallback();
@@ -433,7 +416,6 @@ int main(int argc, const char *argv[])
             }
         }
 
-        /* Seleccionar buffer */
         setRenderTarget(context, &buffers[currentBuffer]);
 
         update(&paddata, connected);
@@ -442,7 +424,6 @@ int main(int argc, const char *argv[])
 
         draw(buffers[currentBuffer].ptr);
 
-        /* Presentar imagen */
         flip(context, buffers[currentBuffer].id);
 
         currentBuffer++;
@@ -451,7 +432,6 @@ int main(int argc, const char *argv[])
             currentBuffer = 0;
     }
 
-    /* Liberar recursos */
     gcmSetWaitFlip(context);
 
     for (i = 0; i < MAX_BUFFERS; i++)
