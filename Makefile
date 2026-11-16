@@ -19,7 +19,7 @@ INCLUDES := include
 TITLE    := Mini Contra
 APPID    := MINICONTRA
 CONTENTID := UP0001-$(APPID)_00-0000000000000000
-SFOXML   := sfo.xml
+SFOXML   := $(CURDIR)/sfo.xml
 
 CFLAGS   = -O2 -Wall -mcpu=cell $(MACHDEP) $(INCLUDE)
 LDFLAGS  = $(MACHDEP) -Wl,-Map,$(notdir $@).map
