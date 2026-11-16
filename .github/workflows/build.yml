@@ -52,7 +52,7 @@ jobs:
 
               echo "Preparando compilación..."
               make clean
-              make
+              make LD=ppu-gcc
             '
 
       - name: Generar paquete PKG
@@ -66,7 +66,7 @@ jobs:
               export PSL1GHT=${PSL1GHT:-$PS3DEV}
               export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin
 
-              make pkg
+              make pkg LD=ppu-gcc
             '
 
       - name: Verificar archivos generados
