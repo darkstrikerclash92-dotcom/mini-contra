@@ -1,7 +1,8 @@
+
 #---------------------------------------------------------------------
-# Makefile basado en la plantilla de los samples de PSL1GHT.
-# Requiere variables de entorno: PS3DEV y PSL1GHT
+# Makefile para Mini Contra - PSL1GHT
 #---------------------------------------------------------------------
+
 .SUFFIXES:
 
 ifeq ($(strip $(PSL1GHT)),)
@@ -10,16 +11,16 @@ endif
 
 include $(PSL1GHT)/ppu_rules
 
-TARGET   := $(notdir $(CURDIR))
-BUILD    := build
-SOURCES  := source
-DATA     := data
-INCLUDES := include
+TARGET    := $(notdir $(CURDIR))
+BUILD     := build
+SOURCES   := source
+DATA      := data
+INCLUDES  := include
 
-TITLE    := Mini Contra
-APPID    := MINICONTRA
+TITLE     := Mini Contra
+APPID     := MINICONTRA
 CONTENTID := UP0001-$(APPID)_00-0000000000000000
-SFOXML   := $(CURDIR)/sfo.xml
+SFOXML    := sfo.xml
 
 CFLAGS   = -O2 -Wall -mcpu=cell $(MACHDEP) $(INCLUDE)
 LDFLAGS  = $(MACHDEP) -Wl,-Map,$(notdir $@).map
@@ -32,12 +33,15 @@ export VPATH    := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
 export BUILDDIR := $(CURDIR)/$(BUILD)
 export DEPSDIR  := $(BUILDDIR)
 
-CFILES   := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 export OFILES := $(CFILES:.c=.o)
+
 export INCLUDE := $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
                   -I$(CURDIR)/$(SOURCES) \
-                  -I$(PORTLIBS)/include -I$(PSL1GHT)/ppu/include \
+                  -I$(PORTLIBS)/include \
+                  -I$(PSL1GHT)/ppu/include \
                   -I$(BUILDDIR)
+
 export LIBPATHS := -L$(PORTLIBS)/lib -L$(PSL1GHT)/ppu/lib
 
 .PHONY: $(BUILD) clean pkg
@@ -51,14 +55,14 @@ clean:
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).self $(OUTPUT).pkg
 
 pkg: $(BUILD)
-	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile $(OUTPUT).pkg
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile $(OUTPUT).pkg SFOXML=$(CURDIR)/$(SFOXML)
 
 else
 
 DEPENDS := $(OFILES:.o=.d)
 
 $(OUTPUT).self: $(OUTPUT).elf
-$(OUTPUT).elf:  $(OFILES)
+$(OUTPUT).elf: $(OFILES)
 
 -include $(DEPENDS)
 
