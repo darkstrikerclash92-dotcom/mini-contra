@@ -1,4 +1,5 @@
-name: Compilar PS3 pkg
+
+name: Compilar Mini Contra para PS3
 
 on:
   push:
@@ -9,28 +10,101 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Descargar el proyecto
       - name: Descargar el proyecto
         uses: actions/checkout@v4
 
-      - name: Conseguir rsxutil desde los samples de PSL1GHT
+      # 2. Obtener los archivos RSX de PSL1GHT
+      - name: Preparar archivos rsxutil
         run: |
-          if [ ! -f source/rsxutil.c ]; then
+          mkdir -p source
+
+          if [ ! -f source/rsxutil.c ] || [ ! -f source/rsxutil.h ]; then
             git clone --depth 1 https://github.com/ps3dev/PSL1GHT.git /tmp/psl1ght
-            RSX=$(find /tmp/psl1ght/samples -name rsxutil.c | head -1)
-            echo "Usando: $RSX"
+
+            RSX=/tmp/psl1ght/samples/graphics/cairo/source/rsxutil.c
+            HEADER=/tmp/psl1ght/samples/graphics/cairo/include/rsxutil.h
+
+            if [ ! -f "$RSX" ]; then
+              echo "ERROR: No se encontró rsxutil.c"
+              find /tmp/psl1ght/samples -name rsxutil.c
+              exit 1
+            fi
+
+            if [ ! -f "$HEADER" ]; then
+              echo "ERROR: No se encontró rsxutil.h"
+              find /tmp/psl1ght/samples -name rsxutil.h
+              exit 1
+            fi
+
             cp "$RSX" source/
-            cp "$(dirname "$RSX")/rsxutil.h" source/
+            cp "$HEADER" source/
+
+            echo "Archivos RSX preparados correctamente"
           fi
 
-      - name: Compilar y empaquetar dentro de Docker
+      # 3. Comprobar los archivos del proyecto
+      - name: Verificar proyecto
         run: |
-          docker run --rm -v "$PWD:/build" -w /build ghcr.io/altps3/ps3dev:latest sh -c 'export PS3DEV=${PS3DEV:-/usr/local/ps3dev}; export PSL1GHT=${PSL1GHT:-$PS3DEV}; export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin; make pkg'
+          echo "Contenido de source:"
+          ls -la source
+          echo "Makefile:"
+          test -f Makefile
+          echo "sfo.xml:"
+          test -f sfo.xml
 
-      - name: Guardar el resultado para descargarlo
+      # 4. Compilar dentro del entorno PS3DEV
+      - name: Compilar Mini Contra
+        run: |
+          docker run --rm \
+            -v "$PWD:/build" \
+            -w /build \
+            ghcr.io/altps3/ps3dev:latest \
+            sh -c '
+              export PS3DEV=${PS3DEV:-/usr/local/ps3dev}
+              export PSL1GHT=${PSL1GHT:-$PS3DEV}
+              export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin
+
+              echo "PS3DEV=$PS3DEV"
+              echo "PSL1GHT=$PSL1GHT"
+
+              make clean
+              make
+            '
+
+      # 5. Generar paquete PKG
+      - name: Generar paquete PKG
+        run: |
+          docker run --rm \
+            -v "$PWD:/build" \
+            -w /build \
+            ghcr.io/altps3/ps3dev:latest \
+            sh -c '
+              export PS3DEV=${PS3DEV:-/usr/local/ps3dev}
+              export PSL1GHT=${PSL1GHT:-$PS3DEV}
+              export PATH=$PATH:$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin
+
+              make pkg
+            '
+
+      # 6. Comprobar los resultados
+      - name: Verificar archivos generados
+        run: |
+          echo "Archivos generados:"
+          find . -maxdepth 3 -type f \( -name "*.elf" -o -name "*.self" -o -name "*.pkg" \)
+
+          if ! find . -name "*.pkg" -type f | grep -q .; then
+            echo "ERROR: No se generó ningún PKG"
+            exit 1
+          fi
+
+      # 7. Guardar los archivos para descargar
+      - name: Guardar Mini Contra
         uses: actions/upload-artifact@v4
         with:
-          name: mini-contra-pkg
+          name: Mini-Contra-PS3
           path: |
             *.pkg
             *.self
+            *.elf
           if-no-files-found: error
